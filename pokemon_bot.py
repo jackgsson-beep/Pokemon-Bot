@@ -9,6 +9,9 @@ WEBHOOK_IRL = "https://discord.com"
 FLARE_URL = "https://onrender.com"
 INTERVALL_SEKUNDER = 60
 
+# Variabel för att tvinga fram ett testpling på första varvet
+TEST_KORT_SKICKAT = False
+
 SVARTLISTA = ["gosedjur", "plush", "mugg", "nyckelring", "pussel", "t-shirt", "keps", "ryggsäck", "bok", "figurer", "lampa"]
 produkt_databas = {}
 
@@ -29,7 +32,17 @@ def skicka_till_discord(webhook_url, meddelande):
         print(f"Fel vid sändning till Discord: {e}")
 
 def kolla_webhallen_pokemon():
+    global TEST_KORT_SKICKAT
     print(f"[{time.strftime('%H:%M:%S')}] Söker på Webhallen via FlareSolverr...")
+    
+    # --- DET BOMBSÄKRA DISCORD-TESTET ---
+    if not TEST_KORT_SKICKAT:
+        print("Tvingar fram en testnotis till Discord...")
+        test_msg = "🚨 **SYSTEMTEST FUNGERAR!**\nDin bot i molnet har kontakt med din Discord-server dygnet runt. Allt är redo för din business! 🚀"
+        skicka_till_discord(WEBHOOK_ONLINE, test_msg)
+        TEST_KORT_SKICKAT = True
+    # ------------------------------------
+
     payload = {
         "cmd": "request.get",
         "url": "https://webhallen.com",
@@ -50,16 +63,6 @@ def kolla_webhallen_pokemon():
         import json
         data = json.loads(json_text)
         produkter = data.get("products", [])
-        
-        # --- TEST-KOD INBÄDDAD EXAKT RÄTT ---
-        fejk_produkt = {
-            "id": 999999,
-            "name": "TEST: Pokémon Scarlet & Violet Booster Box Restock",
-            "price": {"current": 1499},
-            "stock": {"web": 20, "shop": 3}
-        }
-        produkter.insert(0, fejk_produkt)
-        # ------------------------------------
 
         for prod in produkter:
             prod_id = prod.get("id")
