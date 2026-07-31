@@ -65,6 +65,15 @@ def kolla_webhallen_pokemon():
         import json
         data = json.loads(json_text)
         produkter = data.get("products", [])
+        # --- LIVE TEST-KOD ---
+            fejk_produkt = {
+                "id": 999999,
+                "name": "TEST: Pokémon Scarlet & Violet Booster Box Restock",
+                "price": {"current": 1499},
+                "stock": {"web": 5, "shop": 0}
+            }
+            produkter.insert(0, fejk_produkt)
+            # ---------------------
 
         for prod in produkter:
             prod_id = prod.get("id")
