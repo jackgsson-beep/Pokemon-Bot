@@ -1,5 +1,8 @@
 import time
 import requests
+import os
+from threading import Thread
+from flask import Flask
 
 # =========================================================================
 # 1. DINA DISCORD WEBHOOK-LÄNKAR (Dessa ligger kvar och är helt rätt!)
@@ -7,7 +10,6 @@ WEBHOOK_ONLINE = "https://discord.com"
 WEBHOOK_IRL = "https://discord.com"
 
 # 2. DIN FLARESOLVERR-LÄNK FRÅN RENDER:
-# Klistra in din länk (t.ex. "https://onrender.com") här under!
 FLARE_URL = "https://mitt-flaresolverr.onrender.com"
 
 # 3. INTERVALL: Hur ofta ska boten söka? (60 sekunder = 1 minut)
@@ -16,6 +18,18 @@ INTERVALL_SEKUNDER = 60
 
 SVARTLISTA = ["gosedjur", "plush", "mugg", "nyckelring", "pussel", "t-shirt", "keps", "ryggsäck", "bok", "figurer", "lampa"]
 produkt_databas = {}
+
+# --- STARTA EN ENKEL WEBB-SERVER FÖR RENDER ---
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "Boten är vid liv och rullar!"
+
+def run_server():
+    # Render skickar med porten automatiskt, annars använder vi 10000
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host='0.0.0.0', port=port)
 
 def skicka_till_discord(webhook_url, meddelande):
     try:
@@ -26,7 +40,6 @@ def skicka_till_discord(webhook_url, meddelande):
 def kolla_webhallen_pokemon():
     print(f"[{time.strftime('%H:%M:%S')}] Söker på Webhallen via FlareSolverr...")
     
-    # Vi ber din FlareSolverr att surfa till Webhallen åt oss och lösa Cloudflare
     payload = {
         "cmd": "request.get",
         "url": "https://webhallen.com",
@@ -34,7 +47,6 @@ def kolla_webhallen_pokemon():
     }
 
     try:
-        # FlareSolverr vill ha '/v1' i slutet av sin adress
         base_url = FLARE_URL.strip("/")
         response = requests.post(f"{base_url}/v1", json=payload, timeout=70)
         
@@ -44,11 +56,8 @@ def kolla_webhallen_pokemon():
 
         res_data = response.json()
         solution = res_data.get("solution", {})
-        
-        # FlareSolverr skickar tillbaka texten som sidan visade
         json_text = solution.get("response", "")
         
-        # Vi rensar bort eventuell HTML om vi bara vill ha den råa texten
         if "products" not in json_text:
             print("Kunde inte hitta produktdata i svaret. Dörrvakten kan ha blockerat.")
             return
@@ -91,10 +100,16 @@ def kolla_webhallen_pokemon():
     except Exception as e:
         print(f"Ett fel uppstod: {e}")
 
-print("==================================================")
-print("   WEBHALLEN POKÉMON-BOT ÄR NU STARTAD (MOLN)     ")
-print("==================================================")
+def bot_loop():
+    print("==================================================")
+    print("   WEBHALLEN POKÉMON-BOT ÄR NU STARTAD (MOLN)     ")
+    print("==================================================")
+    while True:
+        kolla_webhallen_pokemon()
+        time.sleep(INTERVALL_SEKUNDER)
 
-while True:
-    kolla_webhallen_pokemon()
-    time.sleep(INTERVALL_SEKUNDER)
+# Kör webbservern i en egen bakgrundstråd så att loopen kan snurra fritt samtidigt
+if __name__ == "__main__":
+    t = Thread(target=run_server)
+    t.start()
+    bot_loop()
