@@ -4,10 +4,13 @@ import os
 from threading import Thread
 from flask import Flask
 
+# =========================================================================
+# DINA ANPASSADE LÄNKAR (FÄRDIGIFULLDA OCH KLARA!)
 WEBHOOK_ONLINE = "https://discord.com/api/webhooks/1532837528095293460/HiAJpmPbQW0D-jfjC0x2dg5uz1bdMuOkjyHFS3qjFgSffARfvpUkXCGJ-mC2ObTTecDu"
 WEBHOOK_IRL = "https://discord.com/api/webhooks/1532837638690574507/VeIXPTzXenrGIOny_0TbNCBOvtZqw7wOHBCBXmi7mX0URwHvwxtjOPqGdvilDFnKrlr5"
 FLARE_URL = "https://mitt-flaresolverr.onrender.com/"
 INTERVALL_SEKUNDER = 60
+# =========================================================================
 
 # Variabel för att tvinga fram ett äkta produktpling direkt vid start
 LIVE_TEST_SKICKAT = False
@@ -52,15 +55,15 @@ def kolla_webhallen_pokemon():
         if "products" not in json_text:
             print("Kunde inte hitta produktdata i svaret. Dörrvakten kan ha blockerat.")
             return
+        
         import json
         data = json.loads(json_text)
         produkter = data.get("products", [])
 
-        # --- DET ULTIMATA LIVE-TESTET ---
-        # Vi tar den allra första äkta produkten från Webhallen och skickar den DIREKT
+        # --- DET ULTIMATA LIVE-TESTET (KORREKT INDEXERAT) ---
         if produkter and not LIVE_TEST_SKICKAT:
-            forsta_prod = produkter[0]
-            namn = forsta_prod.get("name", "Testprodukt")
+            forsta_prod = produkter[0]  # Hämtar den allra första riktiga produkten i listan [0]
+            namn = forsta_prod.get("name", "Äkta Pokémon-produkt")
             pris = forsta_prod.get("price", {}).get("current", "Okänt")
             prod_id = forsta_prod.get("id", "")
             lank = f"https://webhallen.com{prod_id}"
@@ -69,7 +72,7 @@ def kolla_webhallen_pokemon():
             msg = f"🌐 **LIVE-TEST: ÄKTA PRODUKT HITTAD!**\n**Produkt:** {namn}\n**Pris:** {pris} kr\n🔗 {lank}"
             skicka_till_discord(WEBHOOK_ONLINE, msg)
             LIVE_TEST_SKICKAT = True
-        # --------------------------------
+        # ----------------------------------------------------
 
         for prod in produkter:
             prod_id = prod.get("id")
