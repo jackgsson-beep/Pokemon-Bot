@@ -8,7 +8,7 @@ from flask import Flask
 # DINA ANPASSADE LÄNKAR (FÄRDIGIFULLDA OCH KLARA!)
 WEBHOOK_ONLINE = "https://discord.com/api/webhooks/1532837528095293460/HiAJpmPbQW0D-jfjC0x2dg5uz1bdMuOkjyHFS3qjFgSffARfvpUkXCGJ-mC2ObTTecDu"
 WEBHOOK_IRL = "https://discord.com/api/webhooks/1532837638690574507/VeIXPTzXenrGIOny_0TbNCBOvtZqw7wOHBCBXmi7mX0URwHvwxtjOPqGdvilDFnKrlr5"
-FLARE_URL = "https://mitt-flaresolverr.onrender.com/"
+FLARE_URL = "https://mitt-flaresolverr.onrender.com"
 INTERVALL_SEKUNDER = 60
 # =========================================================================
 
