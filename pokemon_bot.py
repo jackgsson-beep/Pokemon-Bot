@@ -56,7 +56,7 @@ def kolla_webhallen_pokemon():
             "id": 999999,
             "name": "TEST: Pokémon Scarlet & Violet Booster Box Restock",
             "price": {"current": 1499},
-            "stock": {"web": 10, "shop": 2}
+            "stock": {"web": 20, "shop": 3}
         }
         produkter.insert(0, fejk_produkt)
         # ------------------------------------
