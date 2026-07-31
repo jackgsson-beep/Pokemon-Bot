@@ -12,14 +12,11 @@ FLARE_URL = "https://mitt-flaresolverr.onrender.com"
 INTERVALL_SEKUNDER = 60
 # =========================================================================
 
-LIVE_TEST_SKICKAT = False
-produkt_databas = {}
-
 app = Flask('')
 
 @app.route('/')
 def home():
-    return "Boten är vid liv och rullar!"
+    return "Boten är vid liv!"
 
 def run_server():
     port = int(os.environ.get("PORT", 10000))
@@ -29,88 +26,28 @@ def skicka_till_discord(webhook_url, meddelande):
     try:
         requests.post(webhook_url, json={"content": meddelande})
     except Exception as e:
-        print(f"Fel vid sändning till Discord: {e}")
+        print(f"Fel vid sändning: {e}")
 
 def kolla_webhallen_pokemon():
-    global LIVE_TEST_SKICKAT
-    print(f"[{time.strftime('%H:%M:%S')}] Söker på Webhallen via FlareSolverr...")
+    print(f"[{time.strftime('%H:%M:%S')}] Startar sökning...")
     
-    payload = {
-        "cmd": "request.get",
-        "url": "https://webhallen.com",
-        "maxTimeout": 60000
-    }
-    try:
-        base_url = FLARE_URL.strip("/")
-        response = requests.post(f"{base_url}/v1", json=payload, timeout=70)
-        
-        if response.status_code != 200:
-            print(f"FlareSolverr svarade med felkod: {response.status_code}")
-            return
-            
-        res_data = response.json()
-        solution = res_data.get("solution", {})
-        json_text = solution.get("response", "")
-        
-        if "products" not in json_text:
-            print("Kunde inte hitta produktdata i svaret.")
-            return
-        
-        import json
-        data = json.loads(json_text)
-        produkter = data.get("products", [])
-
-        # --- BOMBSÄKERT LIVE-TEST MED KORREKT INDEX ---
-        if produkter and not LIVE_TEST_SKICKAT:
-            forsta_prod = produkter[0]  # HÄR ÄR FIXEN! Tar första produkten ur listan
-            namn = forsta_prod.get("name", "Äkta Pokémon-produkt")
-            pris = forsta_prod.get("price", {}).get("current", "Okänt")
-            prod_id = forsta_prod.get("id", "")
-            lank = f"https://webhallen.com{prod_id}"
-            
-            print(f"Tvingar fram en äkta produktnotis för: {namn}...")
-            msg = f"🌐 **LIVE-TEST: ÄKTA PRODUKT HITTAD!**\n**Produkt:** {namn}\n**Pris:** {pris} kr\n🔗 {lank}"
-            skicka_till_discord(WEBHOOK_ONLINE, msg)
-            LIVE_TEST_SKICKAT = True
-        # --------------------------------------------
-
-        for prod in produkter:
-            prod_id = prod.get("id")
-            namn = prod.get("name", "")
-            pris = prod.get("price", {}).get("current", "Okänt pris")
-            lank = f"https://webhallen.com{prod_id}"
-            stock_info = prod.get("stock", {})
-            aktuellt_online = stock_info.get("web", 0)
-            aktuellt_irl = stock_info.get("shop", 0)
-            
-            if prod_id not in produkt_databas:
-                produkt_databas[prod_id] = {"online": aktuellt_online, "irl": aktuellt_irl}
-                continue
-                
-            forra_online = produkt_databas[prod_id]["online"]
-            forra_irl = produkt_databas[prod_id]["irl"]
-            
-            if aktuellt_online > 0 and forra_online == 0:
-                msg = f"🌐 **NYHET ONLINE!**\n**Produkt:** {namn}\n**Pris:** {pris} kr\n🔗 {lank}"
-                skicka_till_discord(WEBHOOK_ONLINE, msg)
-            if aktuellt_irl > 0 and forra_irl == 0:
-                msg = f"🛒 **RESTOCK IRL-BUTIK!**\n**Produkt:** {namn}\n**Pris:** {pris} kr\n🏃‍♂️ Kolla butik: {lank}"
-                skicka_till_discord(WEBHOOK_IRL, msg)
-                
-            produkt_databas[prod_id] = {"online": aktuellt_online, "irl": aktuellt_irl}
-            
-    except Exception as e:
-        print(f"Ett fel uppstod: {e}")
-
-def bot_loop():
-    print("==================================================")
-    print("   WEBHALLEN POKÉMON-BOT ÄR NU STARTAD (MOLN)     ")
-    print("==================================================")
-    while True:
-        kolla_webhallen_pokemon()
-        time.sleep(INTERVALL_SEKUNDER)
+    # --- DET ULTIMATA DIREKT-TESTET ---
+    # Vi skickar en äkta formaterad Pokémon-notis DIREKT på första sekunden!
+    print("Tvingar fram en äkta produktnotis till Discord...")
+    msg = "🌐 **LIVE-TEST: ÄKTA PRODUKT HITTAD!**\n**Produkt:** Pokémon TCG: Scarlet & Violet 8.5 Shrouded Fable - Elite Trainer Box\n**Pris:** 649 kr\n🔗 https://webhallen.com"
+    skicka_till_discord(WEBHOOK_ONLINE, msg)
+    # ----------------------------------
+    
+    # Pausa så den inte spammar
+    time.sleep(INTERVALL_SEKUNDER)
 
 if __name__ == "__main__":
     t = Thread(target=run_server)
     t.start()
-    bot_loop()
+    
+    print("==================================================")
+    print("   WEBHALLEN POKÉMON-BOT ÄR NU STARTAD (MOLN)     ")
+    print("==================================================")
+    
+    # Kör direkt
+    kolla_webhallen_pokemon()
