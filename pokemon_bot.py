@@ -86,6 +86,10 @@ def kolla_webhallen_pokemon():
             prod_id = prod.get("id")
             namn = prod.get("name", "")
             namn_lower = namn.lower()
+            # --- TRICK FÖR ATT SE EN RIKTIG PRODUKT ---
+            if "booster" in prod.get("name", "").lower():
+                prod["stock"]["web"] = 10
+            # ------------------------------------------
 
             if any(skrap_ord in namn_lower for skrap_ord in SVARTLISTA):
                 continue 
