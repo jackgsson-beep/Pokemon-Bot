@@ -5,17 +5,14 @@ from threading import Thread
 from flask import Flask
 
 # =========================================================================
-# DINA ANPASSADE LÄNKAR (FÄRDIGIFULLDA OCH KLARA!)
+# DINA VERIFIERADE OCH FUNGERANDE LÄNKAR:
 WEBHOOK_ONLINE = "https://discord.com/api/webhooks/1532837528095293460/HiAJpmPbQW0D-jfjC0x2dg5uz1bdMuOkjyHFS3qjFgSffARfvpUkXCGJ-mC2ObTTecDu"
 WEBHOOK_IRL = "https://discord.com/api/webhooks/1532837638690574507/VeIXPTzXenrGIOny_0TbNCBOvtZqw7wOHBCBXmi7mX0URwHvwxtjOPqGdvilDFnKrlr5"
 FLARE_URL = "https://mitt-flaresolverr.onrender.com"
 INTERVALL_SEKUNDER = 60
 # =========================================================================
 
-# Variabel för att tvinga fram ett äkta produktpling direkt vid start
 LIVE_TEST_SKICKAT = False
-
-SVARTLISTA = ["gosedjur", "plush", "mugg", "nyckelring", "pussel", "t-shirt", "keps", "ryggsäck", "bok", "figurer", "lampa"]
 produkt_databas = {}
 
 app = Flask('')
@@ -46,23 +43,26 @@ def kolla_webhallen_pokemon():
     try:
         base_url = FLARE_URL.strip("/")
         response = requests.post(f"{base_url}/v1", json=payload, timeout=70)
+        
         if response.status_code != 200:
             print(f"FlareSolverr svarade med felkod: {response.status_code}")
             return
+            
         res_data = response.json()
         solution = res_data.get("solution", {})
         json_text = solution.get("response", "")
+        
         if "products" not in json_text:
-            print("Kunde inte hitta produktdata i svaret. Dörrvakten kan ha blockerat.")
+            print("Kunde inte hitta produktdata i svaret.")
             return
         
         import json
         data = json.loads(json_text)
         produkter = data.get("products", [])
 
-        # --- DET ULTIMATA LIVE-TESTET (KORREKT INDEXERAT) ---
+        # --- BOMBSÄKERT LIVE-TEST UTAN SVARTLISTA ---
         if produkter and not LIVE_TEST_SKICKAT:
-            forsta_prod = produkter[0]  # Hämtar den allra första riktiga produkten i listan [0]
+            forsta_prod = produkter[0]  # Tar första bästa produkt från Webhallen
             namn = forsta_prod.get("name", "Äkta Pokémon-produkt")
             pris = forsta_prod.get("price", {}).get("current", "Okänt")
             prod_id = forsta_prod.get("id", "")
@@ -72,31 +72,33 @@ def kolla_webhallen_pokemon():
             msg = f"🌐 **LIVE-TEST: ÄKTA PRODUKT HITTAD!**\n**Produkt:** {namn}\n**Pris:** {pris} kr\n🔗 {lank}"
             skicka_till_discord(WEBHOOK_ONLINE, msg)
             LIVE_TEST_SKICKAT = True
-        # ----------------------------------------------------
+        # --------------------------------------------
 
         for prod in produkter:
             prod_id = prod.get("id")
             namn = prod.get("name", "")
-            namn_lower = namn.lower()
-            if any(skrap_ord in namn_lower for skrap_ord in SVARTLISTA):
-                continue 
             pris = prod.get("price", {}).get("current", "Okänt pris")
             lank = f"https://webhallen.com{prod_id}"
             stock_info = prod.get("stock", {})
             aktuellt_online = stock_info.get("web", 0)
             aktuellt_irl = stock_info.get("shop", 0)
+            
             if prod_id not in produkt_databas:
                 produkt_databas[prod_id] = {"online": aktuellt_online, "irl": aktuellt_irl}
                 continue
+                
             forra_online = produkt_databas[prod_id]["online"]
             forra_irl = produkt_databas[prod_id]["irl"]
+            
             if aktuellt_online > 0 and forra_online == 0:
                 msg = f"🌐 **NYHET ONLINE!**\n**Produkt:** {namn}\n**Pris:** {pris} kr\n🔗 {lank}"
                 skicka_till_discord(WEBHOOK_ONLINE, msg)
             if aktuellt_irl > 0 and forra_irl == 0:
                 msg = f"🛒 **RESTOCK IRL-BUTIK!**\n**Produkt:** {namn}\n**Pris:** {pris} kr\n🏃‍♂️ Kolla butik: {lank}"
                 skicka_till_discord(WEBHOOK_IRL, msg)
+                
             produkt_databas[prod_id] = {"online": aktuellt_online, "irl": aktuellt_irl}
+            
     except Exception as e:
         print(f"Ett fel uppstod: {e}")
 
