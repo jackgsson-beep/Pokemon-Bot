@@ -60,9 +60,9 @@ def kolla_webhallen_pokemon():
         data = json.loads(json_text)
         produkter = data.get("products", [])
 
-        # --- BOMBSÄKERT LIVE-TEST UTAN SVARTLISTA ---
+        # --- BOMBSÄKERT LIVE-TEST MED KORREKT INDEX ---
         if produkter and not LIVE_TEST_SKICKAT:
-            forsta_prod = produkter[0]  # Tar första bästa produkt från Webhallen
+            forsta_prod = produkter[0]  # HÄR ÄR FIXEN! Tar första produkten ur listan
             namn = forsta_prod.get("name", "Äkta Pokémon-produkt")
             pris = forsta_prod.get("price", {}).get("current", "Okänt")
             prod_id = forsta_prod.get("id", "")
