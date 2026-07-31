@@ -9,7 +9,7 @@ WEBHOOK_IRL = "https://discord.com"
 FLARE_URL = "https://onrender.com"
 INTERVALL_SEKUNDER = 60
 
-SVARTLISTA = ["Booster", "gosedjur", "plush", "mugg", "nyckelring", "pussel", "t-shirt", "keps", "ryggsäck", "bok", "figurer", "lampa"]
+SVARTLISTA = ["gosedjur", "plush", "mugg", "nyckelring", "pussel", "t-shirt", "keps", "ryggsäck", "bok", "figurer", "lampa"]
 produkt_databas = {}
 
 app = Flask('')
