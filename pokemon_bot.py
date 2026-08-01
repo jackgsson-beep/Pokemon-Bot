@@ -1,9 +1,8 @@
 import time
 import requests
 import os
-import json
-from threading import Thread
 from flask import Flask
+from apscheduler.schedulers.background import BackgroundScheduler
 
 # =========================================================================
 # CONFIG
@@ -11,7 +10,6 @@ from flask import Flask
 WEBHOOK_ONLINE = os.environ.get("WEBHOOK_ONLINE")
 WEBHOOK_IRL = os.environ.get("WEBHOOK_IRL")
 VIP_ROLE_ID = "" 
-INTERVALL_SEKUNDER = 60
 # =========================================================================
 
 SVARTLISTA = ["gosedjur", "plush", "mugg", "nyckelring", "pussel", "t-shirt", "keps", "ryggsäck", "bok", "figurer", "lampa"]
@@ -21,11 +19,7 @@ app = Flask('')
 
 @app.route('/')
 def home():
-    return "Boten rullar!"
-
-def run_server():
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host='0.0.0.0', port=port)
+    return f"Boten rullar! Senaste koll: {time.strftime('%H:%M:%S')}"
 
 def skicka_till_discord(webhook_url, titel, text, lank, bild_url):
     content_ping = f"<@&{VIP_ROLE_ID}>" if VIP_ROLE_ID else ""
@@ -48,31 +42,27 @@ def skicka_till_discord(webhook_url, titel, text, lank, bild_url):
         print(f"Fel vid sändning till Discord: {e}")
 
 def kolla_webhallen_pokemon():
-    print(f"[{time.strftime('%H:%M:%S')}] Söker DIREKT mot Webhallen API...")
+    print(f"[{time.strftime('%H:%M:%S')}] --- STARTAR SÖKNING MOT WEBHALLEN ---")
     
     API_URL = "https://webhallen.com"
-    
-    # Låtsas vara en vanlig webbläsare så att Webhallen släpper igenom oss direkt
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Accept": "application/json"
     }
 
     try:
-        # Anropa Webhallen direkt – tar under 1 sekund istället för 30 sekunder via FlareSolverr
-        response = requests.get(API_URL, headers=headers, timeout=15)
+        response = requests.get(API_URL, headers=headers, timeout=10)
         
         if response.status_code != 200:
-            print(f"[{time.strftime('%H:%M:%S')}] Webhallen API svarade med felkod: {response.status_code}")
+            print(f"[{time.strftime('%H:%M:%S')}] Felkod från Webhallen: {response.status_code}")
             return
 
         data = response.json()
         produkter = data.get("rows", [])
-        
         if not produkter:
             produkter = data.get("products", [])
             
-        print(f"[{time.strftime('%H:%M:%S')}] SUCCÉ! Hittade {len(produkter)} produkter i Webhallens live-lager.")
+        print(f"[{time.strftime('%H:%M:%S')}] Sökning klar. Hittade {len(produkter)} produkter.")
 
         for prod in produkter:
             prod_id = str(prod.get("id"))
@@ -106,24 +96,25 @@ def kolla_webhallen_pokemon():
 
             if aktuellt_irl > forra_irl:
                 titel = "🛒 RESTOCK I FYSISK BUTIK!"
-                text = f"**Produkt:** {namn}\n**Pris:** {pris} kr\n**Totalt i butiker nu:** {aktuellt_irl} st\n🏃‍♂️ Kolla din lokala butik snabbt!"
+                text = f"**Produkt:** {namn}\n**Pris:** {pris} kr\n**Totalt i butiker nu:** {aktuellt_irl} st"
                 skicka_till_discord(WEBHOOK_IRL, titel, text, lank, bild_url)
 
             produkt_databas[prod_id] = {"online": aktuellt_online, "irl": aktuellt_irl}
 
     except Exception as e:
-        print(f"[{time.strftime('%H:%M:%S')}] Fel vid direktanrop: {e}")
+        print(f"[{time.strftime('%H:%M:%S')}] Fel vid sökning: {e}")
 
-def bot_loop():
-    print("==================================================")
-    print("   WEBHALLEN POKÉMON-BOT ÄR NU STARTAD (MOLN)     ")
-    print("==================================================")
-    while True:
-        kolla_webhallen_pokemon()
-        time.sleep(INTERVALL_SEKUNDER)
+# Schemaläggaren som körs synkat med Flask
+scheduler = BackgroundScheduler()
+scheduler.add_job(func=kolla_webhallen_pokemon, trigger="interval", seconds=60)
+scheduler.start()
 
 if __name__ == "__main__":
-    t = Thread(target=bot_loop)
-    t.daemon = True
-    t.start()
-    run_server()
+    print("==================================================")
+    print("   WEBHALLEN POKÉMON-BOT LIVE VIA SCHEDULER       ")
+    print("==================================================")
+    # Kör en sökning direkt vid start så vi ser direkt i loggen att det funkar
+    kolla_webhallen_pokemon()
+    
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host='0.0.0.0', port=port)
