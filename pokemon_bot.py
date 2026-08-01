@@ -70,9 +70,6 @@ def kolla_webhallen_rss():
             # Extrahera ID från länken (t.ex. från https://webhallen.com)
             prod_id = lank.split("/")[-1] if lank else ""
 
-            if not prod_id or not titel_raw:
-                continue
-
             # Svartlista direkt i RSS-titeln
             namn_lower = titel_raw.lower()
             if any(x in namn_lower for x in ["gosedjur", "plush", "mugg", "nyckelring", "pussel", "t-shirt", "keps", "ryggsäck"]):
