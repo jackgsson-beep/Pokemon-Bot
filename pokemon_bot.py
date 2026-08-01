@@ -1,4 +1,4 @@
-import time
+import datetime
 import requests
 import os
 from flask import Flask
@@ -35,8 +35,8 @@ def skicka_till_discord(webhook_url, titel, text, lank, bild_url):
         print(f"Fel vid sändning till Discord: {e}")
 
 def kolla_pokemon_sets():
-    # FIXAD RAD: Nu med korrekt tidsformatering utan extra tecken!
-    nuvarande_tid = time.strftime('%H:%M:%S')
+    # SÄKRAD TID: Använder UTC-tid direkt för att matcha Renders serverklocka
+    nuvarande_tid = datetime.datetime.utcnow().strftime('%H:%M:%S')
     print(f"[{nuvarande_tid}] UptimeRobot triggade sökning mot Pokémon TCG API...")
     
     API_URL = "https://pokemontcg.io"
@@ -50,7 +50,8 @@ def kolla_pokemon_sets():
         sets = data.get("data", [])
         
         hittade_nya = 0
-        for poke_set in sets[:15]:
+        # Vi hårdkodar så att den tvingas skicka de 5 senaste seten direkt vid ping
+        for poke_set in sets[:5]:
             set_id = poke_set.get("id")
             namn = poke_set.get("name")
             serie = poke_set.get("series")
@@ -60,19 +61,14 @@ def kolla_pokemon_sets():
             
             lank = f"https://cardmarket.com{namn.replace(' ', '+')}"
 
-            # TESTLÄGE: Just nu bortkommenterat så att du direkt ser att din Discord tar emot datan!
-            # if set_id not in set_databas:
-            #     set_databas.add(set_id)
-            #     continue
-
             titel = f"🔥 NYTT POKÉMON SET DETEKTERAT: {namn.upper()}!"
-            text = f"**Serie:** {serie}\n**Officiellt släpp:** {slapp_datum}\n**Antal kort i setet:** {totalt_kort} st\n\nDetta set är nu officiellt live i databasen för preorders och kortvärdering!"
+            text = f"**Serie:** {serie}\n**Officiellt släpp:** {slapp_datum}\n**Antal kort i setet:** {totalt_kort} st\n\nDetta set är nu live!"
             
             skicka_till_discord(WEBHOOK_ONLINE, titel, text, lank, bild_url)
             set_databas.add(set_id)
             hittade_nya += 1
 
-        return f"Sökning klar. Hittade {len(sets)} set. Skickade {hittade_nya} till Discord."
+        return f"Sökning klar. Skickade {hittade_nya} set till Discord."
 
     except Exception as e:
         return f"Fel vid API-läsning: {e}"
@@ -80,8 +76,10 @@ def kolla_pokemon_sets():
 @app.route('/')
 def home():
     resultat = kolla_pokemon_sets()
-    return f"Status: {resultat} - Tid: {time.strftime('%H:%M:%S')}"
+    tidsstampel = datetime.datetime.utcnow().strftime('%H:%M:%S')
+    return f"Status: {resultat} - Tid UTC: {tidsstampel}"
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
+
