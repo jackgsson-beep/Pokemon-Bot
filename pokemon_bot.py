@@ -109,12 +109,12 @@ def kolla_webhallen_pokemon():
             forra_online = produkt_databas[prod_id]["online"]
             forra_irl = produkt_databas[prod_id]["irl"]
 
-            if aktuellt_online > forra_online:
+            if aktuellt_online >= forra_online:
                 titel = "🌐 NYHET / RESTOCK ONLINE!"
                 text = f"**Produkt:** {namn}\n**Pris:** {pris} kr\n**Nytt lager på webben:** {aktuellt_online} st"
                 skicka_till_discord(WEBHOOK_ONLINE, titel, text, lank, bild_url)
 
-            if aktuellt_irl > forra_irl:
+            if aktuellt_irl >= forra_irl:
                 titel = "🛒 RESTOCK I FYSISK BUTIK!"
                 text = f"**Produkt:** {namn}\n**Pris:** {pris} kr\n**Totalt i butiker nu:** {aktuellt_irl} st\n🏃‍♂️ Kolla butikslager på hemsidan!"
                 skicka_till_discord(WEBHOOK_IRL, titel, text, lank, bild_url)
