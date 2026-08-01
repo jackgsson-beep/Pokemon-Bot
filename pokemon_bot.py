@@ -1,3 +1,57 @@
+import time
+import requests
+import os
+import json
+from threading import Thread
+from flask import Flask
+
+# =========================================================================
+# MILJÖVARIABLER (Hämtas säkert från Render!)
+# =========================================================================
+WEBHOOK_ONLINE = os.environ.get("WEBHOOK_ONLINE")
+WEBHOOK_IRL = os.environ.get("WEBHOOK_IRL")
+FLARE_URL = os.environ.get("FLARE_URL")
+
+# ID på din Discord-roll för VIP-pings (Högerklicka på rollen i Discord -> Kopiera ID)
+VIP_ROLE_ID = "" 
+
+INTERVALL_SEKUNDER = 60
+# =========================================================================
+
+SVARTLISTA = ["gosedjur", "plush", "mugg", "nyckelring", "pussel", "t-shirt", "keps", "ryggsäck", "bok", "figurer", "lampa"]
+produkt_databas = {}
+
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "Boten rullar!"
+
+def run_server():
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host='0.0.0.0', port=port)
+
+def skicka_till_discord(webhook_url, titel, text, lank, bild_url):
+    content_ping = f"<@&{VIP_ROLE_ID}>" if VIP_ROLE_ID else ""
+    
+    payload = {
+        "content": content_ping,
+        "embeds": [
+            {
+                "title": titel,
+                "description": text,
+                "url": lank,
+                "color": 5814783,
+                "image": {"url": bild_url} if bild_url else None,
+                "footer": {"text": "Webhallen Pokémon Monitor"}
+            }
+        ]
+    }
+    try:
+        requests.post(webhook_url, json=payload, timeout=10)
+    except Exception as e:
+        print(f"Fel vid sändning till Discord: {e}")
+
 def kolla_webhallen_pokemon():
     print(f"[{time.strftime('%H:%M:%S')}] Söker på Webhallen via FlareSolverr...")
     
@@ -6,14 +60,13 @@ def kolla_webhallen_pokemon():
     payload = {
         "cmd": "request.get",
         "url": API_URL,
-        "maxTimeout": 15000  # Sänkt till 15 sekunder så vi slipper vänta för länge
+        "maxTimeout": 15000
     }
 
     try:
         base_url = FLARE_URL.strip("/")
         print(f"[{time.strftime('%H:%M:%S')}] Skickar anrop till FlareSolverr på: {base_url}/v1")
         
-        # VIKTIGT: Sätter timeout=30 här så att skriptet aldrig kan fastna för evigt
         response = requests.post(f"{base_url}/v1", json=payload, timeout=30)
         print(f"[{time.strftime('%H:%M:%S')}] FlareSolverr svarade med status: {response.status_code}")
         
@@ -43,7 +96,7 @@ def kolla_webhallen_pokemon():
             lank = f"https://webhallen.com{prod_id}"
             
             bilder = prod.get("images", [])
-            bild_url = bilder[0].get("large", "") if bilder and isinstance(bilder, list) else ""
+            bild_url = bilder.get("large", "") if bilder and isinstance(bilder, list) else ""
             
             stock_info = prod.get("stock", {})
             aktuellt_online = int(stock_info.get("web", 0))
@@ -71,7 +124,7 @@ def kolla_webhallen_pokemon():
     except requests.exceptions.Timeout:
         print(f"[{time.strftime('%H:%M:%S')}] FEL: Anropet till FlareSolverr tog för lång tid (Timeout)!")
     except json.JSONDecodeError:
-        print(f"[{time.strftime('%H:%M:%S')}] FEL: Kunde inte tolka svaret som JSON. Webhallen blockerade oss eller FlareSolverr skickade fel data.")
+        print(f"[{time.strftime('%H:%M:%S')}] FEL: Kunde inte tolka svaret som JSON. Webhallen blockerade oss.")
     except Exception as e:
         print(f"[{time.strftime('%H:%M:%S')}] Allmänt fel i loopen: {e}")
 
@@ -80,7 +133,6 @@ def bot_loop():
     print("   WEBHALLEN POKÉMON-BOT ÄR NU STARTAD (MOLN)     ")
     print("==================================================")
     
-    # DISCORD TEST-ANROP (Körs direkt när boten startar upp)
     print(f"[{time.strftime('%H:%M:%S')}] Skickar TEST-meddelanden till Discord...")
     skicka_till_discord(WEBHOOK_ONLINE, "🚨 BOT-TEST ONLINE!", "Om du ser detta fungerar din ONLINE-webhook!", "https://webhallen.com", "")
     skicka_till_discord(WEBHOOK_IRL, "🚨 BOT-TEST IRL!", "Om du ser detta fungerar din IRL-webhook!", "https://webhallen.com", "")
