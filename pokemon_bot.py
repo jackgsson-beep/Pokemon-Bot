@@ -1,7 +1,6 @@
 import time
 import requests
 import os
-import xml.etree.ElementTree as ET
 from flask import Flask
 
 # =========================================================================
@@ -12,10 +11,10 @@ WEBHOOK_IRL = os.environ.get("WEBHOOK_IRL")
 VIP_ROLE_ID = "" 
 # =========================================================================
 
-produkt_databas = set()
+set_databas = set()
 app = Flask('')
 
-def skicka_till_discord(webhook_url, titel, text, lank):
+def skicka_till_discord(webhook_url, titel, text, lank, bild_url):
     content_ping = f"<@&{VIP_ROLE_ID}>" if VIP_ROLE_ID else ""
     payload = {
         "content": content_ping,
@@ -24,8 +23,9 @@ def skicka_till_discord(webhook_url, titel, text, lank):
                 "title": titel,
                 "description": text,
                 "url": lank,
-                "color": 5814783,
-                "footer": {"text": "Webhallen Pokémon RSS Monitor"}
+                "color": 16711680, # Röd Pokémon-färg
+                "image": {"url": bild_url} if bild_url else None,
+                "footer": {"text": "Pokémon TCG Live Set Monitor"}
             }
         ]
     }
@@ -34,68 +34,55 @@ def skicka_till_discord(webhook_url, titel, text, lank):
     except Exception as e:
         print(f"Fel vid sändning till Discord: {e}")
 
-def kolla_webhallen_rss():
-    print(f"[{time.strftime('%H:%M:%S')}] Triggar RSS-sökning...")
+def kolla_pokemon_sets():
+    print(f"[{time.strftime('%H('%M:%S')}] UptimeRobot triggade sökning mot Pokémon TCG API...")
     
-    # KORRIGERAD STRUKTUR: Går direkt på kategorin för Pokémon-samlarkort via RSS
-    RSS_URL = "https://webhallen.com"
+    # Officiellt, öppet API för Pokémon-kort och set (Sorterat på releasedatum)
+    API_URL = "https://pokemontcg.io"
     
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "application/rss+xml, application/xml;q=0.9, */*;q=0.8"
-    }
-
     try:
-        response = requests.get(RSS_URL, headers=headers, timeout=15)
+        response = requests.get(API_URL, timeout=15)
         if response.status_code != 200:
-            return f"Webhallen nekade anropet: {response.status_code}"
+            return f"Pokémon API svarade med felkod: {response.status_code}"
 
-        # Tolka XML-strukturen från RSS
-        root = ET.fromstring(response.content)
-        
-        # Hantera eventuella namnrymder (namespaces) i Webhallens XML
-        items = root.findall(".//item")
-        if not items:
-            items = root.findall("{http://w3.org}item")
+        data = response.json()
+        sets = data.get("data", [])
         
         hittade_nya = 0
-        for item in items:
-            title_node = item.find("title")
-            link_node = item.find("link")
+        # Vi kollar de 15 senaste releaserna på marknaden
+        for poke_set in sets[:15]:
+            set_id = poke_set.get("id")
+            namn = poke_set.get("name")
+            serie = poke_set.get("series")
+            slapp_datum = poke_set.get("releaseDate")
+            totalt_kort = poke_set.get("total")
             
-            titel_raw = title_node.text if title_node is not None else ""
-            lank = link_node.text if link_node is not None else ""
-            prod_id = lank.split("/")[-1] if lank else ""
-
-            if not prod_id or not titel_raw:
-                continue
-
-            namn_lower = titel_raw.lower()
+            # Hämtar officiell logotyp för setet
+            bild_url = poke_set.get("images", {}).get("logo", "")
             
-            # Filtrera bort skräp så vi bara får det viktiga
-            if any(x in namn_lower for x in ["gosedjur", "plush", "mugg", "nyckelring", "pussel", "t-shirt", "keps", "ryggsäck", "bok", "figurer", "lampa"]):
-                continue
+            # Skapar en direktlänk till Cardmarket för priskoll
+            lank = f"https://cardmarket.com{namn.replace(' ', '+')}"
 
-            # TESTLÄGE: Just nu bortkommenterat så att du ser att det plingar i Discord direkt!
-            # if prod_id not in produkt_databas:
-            #     produkt_databas.add(prod_id)
+            # TESTLÄGE: Bortkommenterat så att du direkt ser att din Discord tar emot datan!
+            # if set_id not in set_databas:
+            #     set_databas.add(set_id)
             #     continue
 
-            titel = "🚨 NY POKÉMON-PRODUKT HITTAD!"
-            text = f"**Produkt:** {titel_raw}\n\nEn produkt eller restock har dykt upp i Webhallens nyhetsflöde!"
-            skicka_till_discord(WEBHOOK_ONLINE, titel, text, lank)
+            titel = f"🔥 NYTT POKÉMON SET DETEKTERAT: {namn.upper()}!"
+            text = f"**Serie:** {serie}\n**Officiellt släpp:** {slapp_datum}\n**Antal kort i setet:** {totalt_kort} st\n\nDetta set är nu officiellt live i databasen för preorders och kortvärdering!"
             
-            produkt_databas.add(prod_id)
+            skicka_till_discord(WEBHOOK_ONLINE, titel, text, lank, bild_url)
+            set_databas.add(set_id)
             hittade_nya += 1
 
-        return f"Sökning klar. Hittade {len(items)} produkter. Skickade {hittade_nya} till Discord."
+        return f"Sökning klar. Hittade {len(sets)} set. Skickade {hittade_nya} till Discord."
 
     except Exception as e:
-        return f"Fel vid RSS-avläsning: {e}"
+        return f"Fel vid API-läsning: {e}"
 
 @app.route('/')
 def home():
-    resultat = kolla_webhallen_rss()
+    resultat = kolla_pokemon_sets()
     return f"Status: {resultat} - Tid: {time.strftime('%H:%M:%S')}"
 
 if __name__ == "__main__":
