@@ -12,7 +12,6 @@ WEBHOOK_IRL = os.environ.get("WEBHOOK_IRL")
 VIP_ROLE_ID = "" 
 # =========================================================================
 
-# Vi sparar IDn i en fil eller lokalt minne
 produkt_databas = set()
 app = Flask('')
 
@@ -36,48 +35,64 @@ def skicka_till_discord(webhook_url, titel, text, lank):
         print(f"Fel vid sändning till Discord: {e}")
 
 def kolla_webhallen_rss():
-    print(f"[{time.strftime('%H:%M:%S')}] UptimeRobot triggade sökning via Webhallen RSS...")
+    print(f"[{time.strftime('%H:%M:%S')}] Triggar RSS-sökning...")
+    
+    # KORRIGERAD STRUKTUR: Går direkt på kategorin för Pokémon-samlarkort via RSS
     RSS_URL = "https://webhallen.com"
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+    
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/rss+xml, application/xml;q=0.9, */*;q=0.8"
+    }
 
     try:
         response = requests.get(RSS_URL, headers=headers, timeout=15)
         if response.status_code != 200:
-            return f"RSS Felkod: {response.status_code}"
+            return f"Webhallen nekade anropet: {response.status_code}"
 
+        # Tolka XML-strukturen från RSS
         root = ET.fromstring(response.content)
+        
+        # Hantera eventuella namnrymder (namespaces) i Webhallens XML
         items = root.findall(".//item")
+        if not items:
+            items = root.findall("{http://w3.org}item")
         
         hittade_nya = 0
         for item in items:
-            titel_raw = item.find("title").text if item.find("title") is not None else ""
-            lank = item.find("link").text if item.find("link") is not None else ""
+            title_node = item.find("title")
+            link_node = item.find("link")
+            
+            titel_raw = title_node.text if title_node is not None else ""
+            lank = link_node.text if link_node is not None else ""
             prod_id = lank.split("/")[-1] if lank else ""
 
             if not prod_id or not titel_raw:
                 continue
 
             namn_lower = titel_raw.lower()
-            if any(x in namn_lower for x in ["gosedjur", "plush", "mugg", "nyckelring", "pussel", "t-shirt", "keps", "ryggsäck"]):
+            
+            # Filtrera bort skräp så vi bara får det viktiga
+            if any(x in namn_lower for x in ["gosedjur", "plush", "mugg", "nyckelring", "pussel", "t-shirt", "keps", "ryggsäck", "bok", "figurer", "lampa"]):
                 continue
 
-            # Ta bort/kommentera bort dessa tre rader sen när du ser att det funkar!
+            # TESTLÄGE: Just nu bortkommenterat så att du ser att det plingar i Discord direkt!
             # if prod_id not in produkt_databas:
             #     produkt_databas.add(prod_id)
             #     continue
 
             titel = "🚨 NY POKÉMON-PRODUKT HITTAD!"
-            text = f"**Produkt:** {titel_raw}\n\nEn ny produkt eller stor restock har dykt upp i Webhallens nyhetsflöde!"
+            text = f"**Produkt:** {titel_raw}\n\nEn produkt eller restock har dykt upp i Webhallens nyhetsflöde!"
             skicka_till_discord(WEBHOOK_ONLINE, titel, text, lank)
+            
             produkt_databas.add(prod_id)
             hittade_nya += 1
 
         return f"Sökning klar. Hittade {len(items)} produkter. Skickade {hittade_nya} till Discord."
 
     except Exception as e:
-        return f"Fel vid RSS-läsning: {e}"
+        return f"Fel vid RSS-avläsning: {e}"
 
-# VARJE GÅNG UPTIMEROBOT BESÖKER DIN HEMSIDA KÖRS SÖKNINGEN DIREKT!
 @app.route('/')
 def home():
     resultat = kolla_webhallen_rss()
