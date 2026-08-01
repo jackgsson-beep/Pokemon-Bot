@@ -55,6 +55,7 @@ def skicka_till_discord(webhook_url, titel, text, lank, bild_url):
 def kolla_webhallen_pokemon():
     print(f"[{time.strftime('%H:%M:%S')}] Söker på Webhallen via FlareSolverr...")
     
+    # KORRIGERAD API-URL: Söker efter pokemon sorterat på de senaste nyheterna/restocksen
     API_URL = "https://webhallen.com"
     
     payload = {
@@ -78,11 +79,18 @@ def kolla_webhallen_pokemon():
         json_text = solution.get("response", "")
         
         if "<body>" in json_text:
-            json_text = json_text.split("<body>")[1].split("</body>")[0]
+            json_text = json_text.split("<body>").split("</body>")
 
         data = json.loads(json_text)
-        produkter = data.get("products", [])
-        print(f"[{time.strftime('%H:%M:%S')}] Hittade {len(produkter)} produkter i API-svaret.")
+        
+        # FIX: Läser från 'rows' istället för 'products' enligt Webhallens nya API-struktur
+        produkter = data.get("rows", [])
+        
+        # Fallback om de skulle ändra tillbaka
+        if not produkter:
+            produkter = data.get("products", [])
+            
+        print(f"[{time.strftime('%H:%M:%S')}] Lyckades läsa API. Hittade {len(produkter)} produkter i listan.")
 
         for prod in produkter:
             prod_id = str(prod.get("id"))
@@ -109,12 +117,13 @@ def kolla_webhallen_pokemon():
             forra_online = produkt_databas[prod_id]["online"]
             forra_irl = produkt_databas[prod_id]["irl"]
 
-            if aktuellt_online >= forra_online:
+            # LIVE-TEST MED '>=', men kräver att det faktiskt finns minst 1 i lager
+            if aktuellt_online > forra_online and aktuellt_online > 0:
                 titel = "🌐 NYHET / RESTOCK ONLINE!"
-                text = f"**Produkt:** {namn}\n**Pris:** {pris} kr\n**Nytt lager på webben:** {aktuellt_online} st"
+                text = f"**Produkt:** {namn}\n**Pris:** {pris} kr\n**Lager på webben:** {aktuellt_online} st"
                 skicka_till_discord(WEBHOOK_ONLINE, titel, text, lank, bild_url)
 
-            if aktuellt_irl >= forra_irl:
+            if aktuellt_irl > forra_irl and aktuellt_irl > 0:
                 titel = "🛒 RESTOCK I FYSISK BUTIK!"
                 text = f"**Produkt:** {namn}\n**Pris:** {pris} kr\n**Totalt i butiker nu:** {aktuellt_irl} st\n🏃‍♂️ Kolla butikslager på hemsidan!"
                 skicka_till_discord(WEBHOOK_IRL, titel, text, lank, bild_url)
@@ -122,11 +131,11 @@ def kolla_webhallen_pokemon():
             produkt_databas[prod_id] = {"online": aktuellt_online, "irl": aktuellt_irl}
 
     except requests.exceptions.Timeout:
-        print(f"[{time.strftime('%H:%M:%S')}] FEL: Anropet till FlareSolverr tog för lång tid (Timeout)!")
+        print(f"[{time.strftime('%H:%M:%S')}] FEL: Timeout mot FlareSolverr.")
     except json.JSONDecodeError:
-        print(f"[{time.strftime('%H:%M:%S')}] FEL: Kunde inte tolka svaret som JSON. Webhallen blockerade oss.")
+        print(f"[{time.strftime('%H:%M:%S')}] FEL: JSONDecodeError. Kunde inte tolka datan.")
     except Exception as e:
-        print(f"[{time.strftime('%H:%M:%S')}] Allmänt fel i loopen: {e}")
+        print(f"[{time.strftime('%H:%M:%S')}] Fel i loopen: {e}")
 
 def bot_loop():
     print("==================================================")
