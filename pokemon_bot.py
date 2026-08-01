@@ -141,11 +141,6 @@ def bot_loop():
     print("==================================================")
     print("   WEBHALLEN POKÉMON-BOT ÄR NU STARTAD (MOLN)     ")
     print("==================================================")
-    
-    print(f"[{time.strftime('%H:%M:%S')}] Skickar TEST-meddelanden till Discord...")
-    skicka_till_discord(WEBHOOK_ONLINE, "🚨 BOT-TEST ONLINE!", "Om du ser detta fungerar din ONLINE-webhook!", "https://webhallen.com", "")
-    skicka_till_discord(WEBHOOK_IRL, "🚨 BOT-TEST IRL!", "Om du ser detta fungerar din IRL-webhook!", "https://webhallen.com", "")
-    print(f"[{time.strftime('%H:%M:%S')}] Test-meddelanden skickade.")
 
     while True:
         kolla_webhallen_pokemon()
