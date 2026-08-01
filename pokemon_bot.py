@@ -23,7 +23,7 @@ def skicka_till_discord(webhook_url, titel, text, lank, bild_url):
                 "title": titel,
                 "description": text,
                 "url": lank,
-                "color": 16711680, # Röd Pokémon-färg
+                "color": 16711680, 
                 "image": {"url": bild_url} if bild_url else None,
                 "footer": {"text": "Pokémon TCG Live Set Monitor"}
             }
@@ -35,9 +35,10 @@ def skicka_till_discord(webhook_url, titel, text, lank, bild_url):
         print(f"Fel vid sändning till Discord: {e}")
 
 def kolla_pokemon_sets():
-    print(f"[{time.strftime('%H('%M:%S')}] UptimeRobot triggade sökning mot Pokémon TCG API...")
+    # FIXAD RAD: Nu med korrekt tidsformatering utan extra tecken!
+    nuvarande_tid = time.strftime('%H:%M:%S')
+    print(f"[{nuvarande_tid}] UptimeRobot triggade sökning mot Pokémon TCG API...")
     
-    # Officiellt, öppet API för Pokémon-kort och set (Sorterat på releasedatum)
     API_URL = "https://pokemontcg.io"
     
     try:
@@ -49,21 +50,17 @@ def kolla_pokemon_sets():
         sets = data.get("data", [])
         
         hittade_nya = 0
-        # Vi kollar de 15 senaste releaserna på marknaden
         for poke_set in sets[:15]:
             set_id = poke_set.get("id")
             namn = poke_set.get("name")
             serie = poke_set.get("series")
             slapp_datum = poke_set.get("releaseDate")
             totalt_kort = poke_set.get("total")
-            
-            # Hämtar officiell logotyp för setet
             bild_url = poke_set.get("images", {}).get("logo", "")
             
-            # Skapar en direktlänk till Cardmarket för priskoll
             lank = f"https://cardmarket.com{namn.replace(' ', '+')}"
 
-            # TESTLÄGE: Bortkommenterat så att du direkt ser att din Discord tar emot datan!
+            # TESTLÄGE: Just nu bortkommenterat så att du direkt ser att din Discord tar emot datan!
             # if set_id not in set_databas:
             #     set_databas.add(set_id)
             #     continue
