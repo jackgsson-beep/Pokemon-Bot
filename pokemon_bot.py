@@ -142,6 +142,8 @@ def bot_loop():
         time.sleep(INTERVALL_SEKUNDER)
 
 if __name__ == "__main__":
-    t = Thread(target=run_server)
+    t = Thread(target=bot_loop)
+    t.daemon = True
     t.start()
-    bot_loop()
+    run_server()
+
