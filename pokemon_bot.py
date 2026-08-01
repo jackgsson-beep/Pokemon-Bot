@@ -6,15 +6,11 @@ from threading import Thread
 from flask import Flask
 
 # =========================================================================
-# MILJÖVARIABLER (Hämtas säkert från Render!)
+# CONFIG
 # =========================================================================
 WEBHOOK_ONLINE = os.environ.get("WEBHOOK_ONLINE")
 WEBHOOK_IRL = os.environ.get("WEBHOOK_IRL")
-FLARE_URL = os.environ.get("FLARE_URL")
-
-# ID på din Discord-roll för VIP-pings (Högerklicka på rollen i Discord -> Kopiera ID)
 VIP_ROLE_ID = "" 
-
 INTERVALL_SEKUNDER = 60
 # =========================================================================
 
@@ -33,7 +29,6 @@ def run_server():
 
 def skicka_till_discord(webhook_url, titel, text, lank, bild_url):
     content_ping = f"<@&{VIP_ROLE_ID}>" if VIP_ROLE_ID else ""
-    
     payload = {
         "content": content_ping,
         "embeds": [
@@ -53,44 +48,31 @@ def skicka_till_discord(webhook_url, titel, text, lank, bild_url):
         print(f"Fel vid sändning till Discord: {e}")
 
 def kolla_webhallen_pokemon():
-    print(f"[{time.strftime('%H:%M:%S')}] Söker på Webhallen via FlareSolverr...")
+    print(f"[{time.strftime('%H:%M:%S')}] Söker DIREKT mot Webhallen API...")
     
-    # KORRIGERAD API-URL: Söker efter pokemon sorterat på de senaste nyheterna/restocksen
     API_URL = "https://webhallen.com"
     
-    payload = {
-        "cmd": "request.get",
-        "url": API_URL,
-        "maxTimeout": 15000
+    # Låtsas vara en vanlig webbläsare så att Webhallen släpper igenom oss direkt
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json"
     }
 
     try:
-        base_url = FLARE_URL.strip("/")
-        print(f"[{time.strftime('%H:%M:%S')}] Skickar anrop till FlareSolverr på: {base_url}/v1")
-        
-        response = requests.post(f"{base_url}/v1", json=payload, timeout=30)
-        print(f"[{time.strftime('%H:%M:%S')}] FlareSolverr svarade med status: {response.status_code}")
+        # Anropa Webhallen direkt – tar under 1 sekund istället för 30 sekunder via FlareSolverr
+        response = requests.get(API_URL, headers=headers, timeout=15)
         
         if response.status_code != 200:
+            print(f"[{time.strftime('%H:%M:%S')}] Webhallen API svarade med felkod: {response.status_code}")
             return
 
-        res_data = response.json()
-        solution = res_data.get("solution", {})
-        json_text = solution.get("response", "")
-        
-        if "<body>" in json_text:
-            json_text = json_text.split("<body>").split("</body>")
-
-        data = json.loads(json_text)
-        
-        # FIX: Läser från 'rows' istället för 'products' enligt Webhallens nya API-struktur
+        data = response.json()
         produkter = data.get("rows", [])
         
-        # Fallback om de skulle ändra tillbaka
         if not produkter:
             produkter = data.get("products", [])
             
-        print(f"[{time.strftime('%H:%M:%S')}] Lyckades läsa API. Hittade {len(produkter)} produkter i listan.")
+        print(f"[{time.strftime('%H:%M:%S')}] SUCCÉ! Hittade {len(produkter)} produkter i Webhallens live-lager.")
 
         for prod in produkter:
             prod_id = str(prod.get("id"))
@@ -117,34 +99,27 @@ def kolla_webhallen_pokemon():
             forra_online = produkt_databas[prod_id]["online"]
             forra_irl = produkt_databas[prod_id]["irl"]
 
-            # LIVE-TEST MED '>=', men kräver att det faktiskt finns minst 1 i lager
-            if aktuellt_online > forra_online and aktuellt_online > 0:
+            if aktuellt_online > forra_online:
                 titel = "🌐 NYHET / RESTOCK ONLINE!"
-                text = f"**Produkt:** {namn}\n**Pris:** {pris} kr\n**Lager på webben:** {aktuellt_online} st"
+                text = f"**Produkt:** {namn}\n**Pris:** {pris} kr\n**Nytt lager på webben:** {aktuellt_online} st"
                 skicka_till_discord(WEBHOOK_ONLINE, titel, text, lank, bild_url)
 
-            if aktuellt_irl > forra_irl and aktuellt_irl > 0:
+            if aktuellt_irl > forra_irl:
                 titel = "🛒 RESTOCK I FYSISK BUTIK!"
-                text = f"**Produkt:** {namn}\n**Pris:** {pris} kr\n**Totalt i butiker nu:** {aktuellt_irl} st\n🏃‍♂️ Kolla butikslager på hemsidan!"
+                text = f"**Produkt:** {namn}\n**Pris:** {pris} kr\n**Totalt i butiker nu:** {aktuellt_irl} st\n🏃‍♂️ Kolla din lokala butik snabbt!"
                 skicka_till_discord(WEBHOOK_IRL, titel, text, lank, bild_url)
 
             produkt_databas[prod_id] = {"online": aktuellt_online, "irl": aktuellt_irl}
 
-    except requests.exceptions.Timeout:
-        print(f"[{time.strftime('%H:%M:%S')}] FEL: Timeout mot FlareSolverr.")
-    except json.JSONDecodeError:
-        print(f"[{time.strftime('%H:%M:%S')}] FEL: JSONDecodeError. Kunde inte tolka datan.")
     except Exception as e:
-        print(f"[{time.strftime('%H:%M:%S')}] Fel i loopen: {e}")
+        print(f"[{time.strftime('%H:%M:%S')}] Fel vid direktanrop: {e}")
 
 def bot_loop():
     print("==================================================")
     print("   WEBHALLEN POKÉMON-BOT ÄR NU STARTAD (MOLN)     ")
     print("==================================================")
-
     while True:
         kolla_webhallen_pokemon()
-        print(f"[{time.strftime('%H:%M:%S')}] Väntar {INTERVALL_SEKUNDER} sekunder till nästa sökning...")
         time.sleep(INTERVALL_SEKUNDER)
 
 if __name__ == "__main__":
