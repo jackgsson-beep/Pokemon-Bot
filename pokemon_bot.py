@@ -30,28 +30,38 @@ def skicka_till_discord(webhook_url, titel, text, lank, bild_url):
         ]
     }
     try:
-        requests.post(webhook_url, json=payload, timeout=10)
+        # Säkerställ att även webhook-anropet har headers och timeout
+        headers = {"User-Agent": "Mozilla/5.0"}
+        requests.post(webhook_url, json=payload, headers=headers, timeout=10)
     except Exception as e:
         print(f"Fel vid sändning till Discord: {e}")
 
 def kolla_pokemon_sets():
-    # SÄKRAD TID: Använder UTC-tid direkt för att matcha Renders serverklocka
     nuvarande_tid = datetime.datetime.utcnow().strftime('%H:%M:%S')
     print(f"[{nuvarande_tid}] UptimeRobot triggade sökning mot Pokémon TCG API...")
     
     API_URL = "https://pokemontcg.io"
     
+    # SÄKERHET: Lägg till kompletta headers så att Pokémon API tror att vi är en vanlig webbläsare
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json"
+    }
+    
     try:
-        response = requests.get(API_URL, timeout=15)
+        response = requests.get(API_URL, headers=headers, timeout=15)
         if response.status_code != 200:
-            return f"Pokémon API svarade med felkod: {response.status_code}"
+            return f"Brandvägg blockerad. Felkod: {response.status_code}"
 
         data = response.json()
         sets = data.get("data", [])
         
+        if not sets:
+            return "Lyckades anropa men fick en tom lista från API:et."
+
         hittade_nya = 0
-        # Vi hårdkodar så att den tvingas skicka de 5 senaste seten direkt vid ping
-        for poke_set in sets[:5]:
+        # Vi tvingar den att skicka de 3 översta/senaste seten direkt
+        for poke_set in sets[:3]:
             set_id = poke_set.get("id")
             namn = poke_set.get("name")
             serie = poke_set.get("series")
@@ -68,7 +78,7 @@ def kolla_pokemon_sets():
             set_databas.add(set_id)
             hittade_nya += 1
 
-        return f"Sökning klar. Skickade {hittade_nya} set till Discord."
+        return f"SÖKNING LYCKADES! Skickade {hittade_nya} set till Discord."
 
     except Exception as e:
         return f"Fel vid API-läsning: {e}"
@@ -82,4 +92,3 @@ def home():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
-
