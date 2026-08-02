@@ -1,6 +1,6 @@
 import time
 import requests
-import xml.etree.ElementTree as ET
+from bs4 import BeautifulSoup
 import os
 from threading import Thread
 from flask import Flask
@@ -8,10 +8,8 @@ from flask import Flask
 # =========================================================================
 # CONFIG
 # =========================================================================
-# Klistra in dina riktiga Discord-webhooks här:
 WEBHOOK_ONLINE = "https://discord.com"
 WEBHOOK_IRL = "https://discord.com"
-
 VIP_ROLE_ID = "" 
 INTERVALL_SEKUNDER = 60
 # =========================================================================
@@ -27,7 +25,7 @@ def run_flask():
     app.run(host='0.0.0.0', port=port)
 
 SVARTLISTA = ["gosedjur", "plush", "mugg", "nyckelring", "pussel", "t-shirt", "keps", "ryggsäck", "bok", "figurer", "lampa", "sleeves", "kortfickor", "tärningar"]
-produkt_databas = set()  # Håller koll på vilka unika produkter vi redan sett
+produkt_databas = set()
 
 def skicka_till_discord(webhook_url, titel, text, lank):
     content_ping = f"<@&{VIP_ROLE_ID}>" if VIP_ROLE_ID else ""
@@ -39,7 +37,7 @@ def skicka_till_discord(webhook_url, titel, text, lank):
                 "description": text,
                 "url": lank,
                 "color": 5814783,
-                "footer": {"text": "Webhallen Pokémon RSS Monitor V1.0"}
+                "footer": {"text": "Webhallen Pokémon RSS Monitor V1.1"}
             }
         ]
     }
@@ -51,8 +49,6 @@ def skicka_till_discord(webhook_url, titel, text, lank):
 
 def kolla_webhallen_rss():
     print(f"[{time.strftime('%H:%M:%S')}] Läser av Webhallens officiella nyhetsflöde...", flush=True)
-    
-    # Webhallens öppna RSS-flöde för alla nya produkter (Cloudflare-fritt!)
     RSS_URL = "https://webhallen.com"
     
     headers = {
@@ -66,34 +62,32 @@ def kolla_webhallen_rss():
             print(f"[{time.strftime('%H:%M:%S')}] Misslyckades med RSS. Status: {response.status_code}", flush=True)
             return
 
-        # Tolka XML-flödet
-        root = ET.fromstring(response.content)
-        items = root.findall(".//item")
+        # FIX: Använder BeautifulSoup med xml-features för att säkert hantera trasiga '&'-tecken
+        soup = BeautifulSoup(response.content, features="xml")
+        items = soup.find_all("item")
         
         antall_pokemon = 0
         
         for item in items:
-            titel = item.find("title").text
-            lank = item.find("link").text
-            guid = item.find("guid").text if item.find("guid") is not None else lank
+            titel = item.find("title").text if item.find("title") else ""
+            lank = item.find("link").text if item.find("link") else ""
+            guid = item.find("guid").text if item.find("guid") else lank
             
+            if not titel:
+                continue
+                
             titel_lower = titel.lower()
             
-            # Sortera ut så vi BARA kollar på Pokémon TCG (men hoppar över svartlistat skräp)
             if "pokemon" in titel_lower or "pokémon" in titel_lower:
                 if any(skrap_ord in titel_lower for skrap_ord in SVARTLISTA):
                     continue
                 
                 antall_pokemon += 1
                 
-                # Om det är en helt ny produkt i flödet som inte fanns i databasen innan
                 if guid not in produkt_databas:
                     print(f"🚨 NY PRODUKT UPPTÄCKT: {titel}", flush=True)
-                    
-                    # Lägg till i databasen så vi inte pingar igen
                     produkt_databas.add(guid)
                     
-                    # Skicka notis till Discord
                     discord_titel = "🌐 NY POKÉMON-PRODUKT UPPTÄCKT!"
                     text = f"**Produkt:** {titel}\n\n*Denna produkt har precis lagts till i Webhallens system!*"
                     skicka_till_discord(WEBHOOK_ONLINE, discord_titel, text, lank)
