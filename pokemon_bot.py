@@ -8,8 +8,10 @@ from flask import Flask
 # =========================================================================
 # CONFIG
 # =========================================================================
+# Kom ihåg att klistra in dina riktiga Discord-webhooks här:
 WEBHOOK_ONLINE = "https://discord.com"
 WEBHOOK_IRL = "https://discord.com"
+
 VIP_ROLE_ID = "" 
 INTERVALL_SEKUNDER = 60
 # =========================================================================
@@ -37,7 +39,7 @@ def skicka_till_discord(webhook_url, titel, text, lank):
                 "description": text,
                 "url": lank,
                 "color": 5814783,
-                "footer": {"text": "Webhallen Pokémon RSS Monitor V1.1"}
+                "footer": {"text": "Webhallen Pokémon RSS Monitor V1.2"}
             }
         ]
     }
@@ -62,8 +64,8 @@ def kolla_webhallen_rss():
             print(f"[{time.strftime('%H:%M:%S')}] Misslyckades med RSS. Status: {response.status_code}", flush=True)
             return
 
-        # FIX: Använder BeautifulSoup med xml-features för att säkert hantera trasiga '&'-tecken
-        soup = BeautifulSoup(response.content, features="xml")
+        # FIX: Använder html.parser som alltid finns inbyggd i Python på Render
+        soup = BeautifulSoup(response.content, features="html.parser")
         items = soup.find_all("item")
         
         antall_pokemon = 0
