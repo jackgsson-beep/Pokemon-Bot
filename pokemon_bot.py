@@ -49,17 +49,18 @@ def skicka_till_discord(webhook_url, titel, text, lank, bild_url):
         print(f"Fel vid sändning till Discord: {e}", flush=True)
 
 def kolla_webhallen_pokemon():
-    print(f"[{time.strftime('%H:%M:%S')}] Söker mot Webhallens API via ScraperAPI PROXIES...", flush=True)
+    print(f"[{time.strftime('%H:%M:%S')}] Söker mot Webhallens API via PREMIUM & RESIDENTIAL PROXIES...", flush=True)
     TARGET_URL = "https://webhallen.com"
     
-    # DIN NYCKEL ÄR NU HÅRDKODAD DIREKT I LÄNKEN HÄR:
-    proxy_url = "http://scraperapi.com?api_key=e663a9e31555f82cc560704a70652f92&url=" + TARGET_URL
+    # PREMIUM OCH RENDER SATT TILL TRUE FÖR ATT KLARA WEBHALLENS CLOUDFLARE
+    proxy_url = "http://scraperapi.com?api_key=e663a9e31555f82cc560704a70652f92&url=" + TARGET_URL + "&premium=true&render=true"
 
     try:
-        response = requests.get(proxy_url, timeout=30)
+        # Ökat timeout till 60 eftersom premium-proxies och javascript tar längre tid att ladda
+        response = requests.get(proxy_url, timeout=60)
 
         if response.status_code != 200:
-            print(f"[{time.strftime('%H:%M:%S')}] ScraperAPI misslyckades. Statuskod: {response.status_code}", flush=True)
+            print(f"[{time.strftime('%H:%M:%S')}] ScraperAPI misslyckades fortfarande. Statuskod: {response.status_code}", flush=True)
             return
 
         data = response.json()
