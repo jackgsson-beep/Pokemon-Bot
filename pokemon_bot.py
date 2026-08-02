@@ -52,8 +52,76 @@ def skicka_till_discord(webhook_url, titel, text, lank, bild_url):
         print(f"Fel vid sändning till Discord: {e}")
 
 def kolla_webhallen_pokemon():
-    print(f"[{time.strftime('%H:%M:%S')}] Söker mot Webhallens dolda API...")
+    # flush=True tvingar loggen att synas direkt på Render
+    print(f"[{time.strftime('%H:%M:%S')}] Söker mot Webhallens dolda API...", flush=True)
     TARGET_URL = "https://webhallen.com"
+    
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json"
+    }
+
+    try:
+        if SCRAPER_API_KEY:
+            proxy_url = f"http://scraperapi?api_key={SCRAPER_API_KEY}&url={TARGET_URL}"
+            response = requests.get(proxy_url, timeout=30)
+        else:
+            response = requests.get(TARGET_URL, headers=headers, timeout=15)
+
+        if response.status_code != 200:
+            print(f"[{time.strftime('%H:%M:%S')}] Felkod: {response.status_code} (Ev. blockering)", flush=True)
+            return
+
+        data = response.json()
+        produkter = data.get("products", [])
+        print(f"[{time.strftime('%H:%M:%S')}] SUCCÉ! Analyserar {len(produkter)} produkter.", flush=True)
+
+        for prod in produkter:
+            prod_id = str(prod.get("id"))
+            namn = prod.get("name", "")
+            namn_lower = namn.lower()
+
+            if any(skrap_ord in namn_lower for skrap_ord in SVARTLISTA):
+                continue 
+
+            pris = prod.get("price", {}).get("current", "Okänt")
+            lank = f"https://webhallen.com{prod_id}"
+            
+            # KORREKT HANTERING AV WEBHALLENS BILDER:
+            bilder = prod.get("images", [])
+            bild_url = ""
+            if isinstance(bilder, list) and len(bilder) > 0:
+                # Plocka ut det första bildobjektet i listan och hämta "large"
+                forsta_bilden = bilder[0]
+                if isinstance(forsta_bilden, dict):
+                    bild_url = forsta_bilden.get("large", "")
+            
+            stock_info = prod.get("stock", {})
+            aktuellt_online = int(stock_info.get("web", 0))
+            aktuellt_irl = int(stock_info.get("shop", 0))
+
+            if prod_id not in produkt_databas:
+                produkt_databas[prod_id] = {"online": aktuellt_online, "irl": aktuellt_irl}
+                continue
+
+            forra_online = produkt_databas[prod_id]["online"]
+            forra_irl = produkt_databas[prod_id]["irl"]
+
+            if aktuellt_online > forra_online:
+                titel = "🌐 NYHET / RESTOCK ONLINE!"
+                text = f"**Produkt:** {namn}\n**Pris:** {pris} kr\n**Nytt lager på webben:** {aktuellt_online} st"
+                skicka_till_discord(WEBHOOK_ONLINE, titel, text, lank, bild_url)
+
+            if aktuellt_irl > forra_irl:
+                titel = "🛒 RESTOCK I FYSISK BUTIK!"
+                text = f"**Produkt:** {namn}\n**Pris:** {pris} kr\n**Totalt i butiker nu:** {aktuellt_irl} st"
+                skicka_till_discord(WEBHOOK_IRL, titel, text, lank, bild_url)
+
+            produkt_databas[prod_id] = {"online": aktuellt_online, "irl": aktuellt_irl}
+
+    except Exception as e:
+        print(f"Fel vid anrop: {e}", flush=True)
+
     
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
