@@ -1,6 +1,6 @@
 import time
 import requests
-import json
+import xml.etree.ElementTree as ET
 import os
 from threading import Thread
 from flask import Flask
@@ -8,8 +8,10 @@ from flask import Flask
 # =========================================================================
 # CONFIG
 # =========================================================================
+# Klistra in dina riktiga Discord-webhooks här:
 WEBHOOK_ONLINE = "https://discord.com"
 WEBHOOK_IRL = "https://discord.com"
+
 VIP_ROLE_ID = "" 
 INTERVALL_SEKUNDER = 60
 # =========================================================================
@@ -18,16 +20,16 @@ app = Flask('')
 
 @app.route('/')
 def home():
-    return "Pokémon Monitor är vid liv och körs dygnet runt!"
+    return "Pokémon RSS Monitor är vid liv dygnet runt!"
 
 def run_flask():
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port)
 
 SVARTLISTA = ["gosedjur", "plush", "mugg", "nyckelring", "pussel", "t-shirt", "keps", "ryggsäck", "bok", "figurer", "lampa", "sleeves", "kortfickor", "tärningar"]
-produkt_databas = {}
+produkt_databas = set()  # Håller koll på vilka unika produkter vi redan sett
 
-def skicka_till_discord(webhook_url, titel, text, lank, bild_url):
+def skicka_till_discord(webhook_url, titel, text, lank):
     content_ping = f"<@&{VIP_ROLE_ID}>" if VIP_ROLE_ID else ""
     payload = {
         "content": content_ping,
@@ -37,8 +39,7 @@ def skicka_till_discord(webhook_url, titel, text, lank, bild_url):
                 "description": text,
                 "url": lank,
                 "color": 5814783,
-                "image": {"url": bild_url} if bild_url else None,
-                "footer": {"text": "Webhallen Pokémon Monitor V1.0"}
+                "footer": {"text": "Webhallen Pokémon RSS Monitor V1.0"}
             }
         ]
     }
@@ -48,72 +49,63 @@ def skicka_till_discord(webhook_url, titel, text, lank, bild_url):
     except Exception as e:
         print(f"Fel vid sändning till Discord: {e}", flush=True)
 
-def kolla_webhallen_pokemon():
-    print(f"[{time.strftime('%H:%M:%S')}] Söker mot Webhallens API via PREMIUM & RESIDENTIAL PROXIES...", flush=True)
-    TARGET_URL = "https://webhallen.com"
+def kolla_webhallen_rss():
+    print(f"[{time.strftime('%H:%M:%S')}] Läser av Webhallens officiella nyhetsflöde...", flush=True)
     
-    # PREMIUM OCH RENDER SATT TILL TRUE FÖR ATT KLARA WEBHALLENS CLOUDFLARE
-    proxy_url = "http://scraperapi.com?api_key=e663a9e31555f82cc560704a70652f92&url=" + TARGET_URL + "&premium=true&render=true"
+    # Webhallens öppna RSS-flöde för alla nya produkter (Cloudflare-fritt!)
+    RSS_URL = "https://webhallen.com"
+    
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    }
 
     try:
-        # Ökat timeout till 60 eftersom premium-proxies och javascript tar längre tid att ladda
-        response = requests.get(proxy_url, timeout=60)
-
+        response = requests.get(RSS_URL, headers=headers, timeout=15)
+        
         if response.status_code != 200:
-            print(f"[{time.strftime('%H:%M:%S')}] ScraperAPI misslyckades fortfarande. Statuskod: {response.status_code}", flush=True)
+            print(f"[{time.strftime('%H:%M:%S')}] Misslyckades med RSS. Status: {response.status_code}", flush=True)
             return
 
-        data = response.json()
-        produkter = data.get("products", [])
-        print(f"[{time.strftime('%H:%M:%S')}] SUCCÉ! Analyserar {len(produkter)} produkter.", flush=True)
-
-        for prod in produkter:
-            prod_id = str(prod.get("id"))
-            namn = prod.get("name", "")
-            namn_lower = namn.lower()
-
-            if any(skrap_ord in namn_lower for skrap_ord in SVARTLISTA):
-                continue 
-
-            pris = prod.get("price", {}).get("current", "Okänt")
-            lank = f"https://webhallen.com{prod_id}"
+        # Tolka XML-flödet
+        root = ET.fromstring(response.content)
+        items = root.findall(".//item")
+        
+        antall_pokemon = 0
+        
+        for item in items:
+            titel = item.find("title").text
+            lank = item.find("link").text
+            guid = item.find("guid").text if item.find("guid") is not None else lank
             
-            bilder = prod.get("images", [])
-            bild_url = ""
-            if isinstance(bilder, list) and len(bilder) > 0:
-                forsta_bilden = bilder[0]
-                if isinstance(forsta_bilden, dict):
-                    bild_url = forsta_bilden.get("large", "")
+            titel_lower = titel.lower()
             
-            stock_info = prod.get("stock", {})
-            aktuellt_online = int(stock_info.get("web", 0))
-            aktuellt_irl = int(stock_info.get("shop", 0))
-
-            if prod_id not in produkt_databas:
-                produkt_databas[prod_id] = {"online": aktuellt_online, "irl": aktuellt_irl}
-                continue
-
-            forra_online = produkt_databas[prod_id]["online"]
-            forra_irl = produkt_databas[prod_id]["irl"]
-
-            if aktuellt_online > forra_online:
-                titel = "🌐 NYHET / RESTOCK ONLINE!"
-                text = f"**Produkt:** {namn}\n**Pris:** {pris} kr\n**Nytt lager på webben:** {aktuellt_online} st"
-                skicka_till_discord(WEBHOOK_ONLINE, titel, text, lank, bild_url)
-
-            if aktuellt_irl > forra_irl:
-                titel = "🛒 RESTOCK I FYSISK BUTIK!"
-                text = f"**Produkt:** {namn}\n**Pris:** {pris} kr\n**Totalt i butiker nu:** {aktuellt_irl} st"
-                skicka_till_discord(WEBHOOK_IRL, titel, text, lank, bild_url)
-
-            produkt_databas[prod_id] = {"online": aktuellt_online, "irl": aktuellt_irl}
+            # Sortera ut så vi BARA kollar på Pokémon TCG (men hoppar över svartlistat skräp)
+            if "pokemon" in titel_lower or "pokémon" in titel_lower:
+                if any(skrap_ord in titel_lower for skrap_ord in SVARTLISTA):
+                    continue
+                
+                antall_pokemon += 1
+                
+                # Om det är en helt ny produkt i flödet som inte fanns i databasen innan
+                if guid not in produkt_databas:
+                    print(f"🚨 NY PRODUKT UPPTÄCKT: {titel}", flush=True)
+                    
+                    # Lägg till i databasen så vi inte pingar igen
+                    produkt_databas.add(guid)
+                    
+                    # Skicka notis till Discord
+                    discord_titel = "🌐 NY POKÉMON-PRODUKT UPPTÄCKT!"
+                    text = f"**Produkt:** {titel}\n\n*Denna produkt har precis lagts till i Webhallens system!*"
+                    skicka_till_discord(WEBHOOK_ONLINE, discord_titel, text, lank)
+                    
+        print(f"[{time.strftime('%H:%M:%S')}] Sökning klar! Hittade {antall_pokemon} aktiva Pokémon-produkter i nyhetsflödet.", flush=True)
 
     except Exception as e:
-        print(f"Fel vid anrop: {e}", flush=True)
+        print(f"Fel vid RSS-läsning: {e}", flush=True)
 
 if __name__ == "__main__":
     print("==================================================")
-    print("   WEBHALLEN POKÉMON-BOT KÖRS PÅ RENDER (FLASK)   ")
+    print("   WEBHALLEN POKÉMON-RSS KÖRS PÅ RENDER (FLASK)   ")
     print("==================================================")
     
     t = Thread(target=run_flask)
@@ -121,5 +113,5 @@ if __name__ == "__main__":
     t.start()
     
     while True:
-        kolla_webhallen_pokemon()
+        kolla_webhallen_rss()
         time.sleep(INTERVALL_SEKUNDER)
